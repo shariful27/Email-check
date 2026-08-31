@@ -21,45 +21,31 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid input' });
   }
 
+  // ইমেইল ফরম্যাট ভ্যালিডেশন
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
   const results = await Promise.all(
     emails.map(async (email) => {
       const cleanEmail = email.trim().toLowerCase();
       
-      // ১. ইমেইল ফরম্যাট চেক
+      // ১. ফরম্যাট ভুল হলে Invalid
       if (!emailRegex.test(cleanEmail)) {
-        return { 
-          email: cleanEmail, 
-          isValid: false, 
-          hasPhoto: false, 
-          reason: 'ভুল ফরম্যাট' 
-        };
+        return { email: cleanEmail, isValid: false, hasPhoto: false, reason: 'অবৈধ ফরম্যাট' };
       }
 
       const domain = cleanEmail.split('@')[1];
-      let isValid = false;
 
-      // ২. ডোমেইন/মেইল সার্ভার চেক (MX Record)
+      // ২. মেইল সার্ভার (MX Record) চেক
       try {
         const mxRecords = await dns.resolveMx(domain);
-        if (mxRecords && mxRecords.length > 0) {
-          isValid = true;
+        if (!mxRecords || mxRecords.length === 0) {
+          return { email: cleanEmail, isValid: false, hasPhoto: false, reason: 'ডোমেইন সার্ভার নেই' };
         }
-      } catch (error) {
-        isValid = false;
+      } catch (err) {
+        return { email: cleanEmail, isValid: false, hasPhoto: false, reason: 'অকার্যকর ডোমেইন' };
       }
 
-      if (!isValid) {
-        return { 
-          email: cleanEmail, 
-          isValid: false, 
-          hasPhoto: false, 
-          reason: 'মেইল সার্ভার পাওয়া যায়নি' 
-        };
-      }
-
-      // ৩. প্রোফাইল পিকচার চেক (Gravatar Check)
+      // ৩. প্রোফাইল পিকচার (Gravatar Check)
       const hash = crypto.createHash('md5').update(cleanEmail).digest('hex');
       const gravatarUrl = `https://www.gravatar.com/avatar/${hash}?d=404`;
       let hasPhoto = false;

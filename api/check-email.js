@@ -1,8 +1,5 @@
 // api/check-email.js
-import crypto from 'crypto';
-
 export default async function handler(req, res) {
-  // CORS হেডার সেট করা যাতে Blogger থেকে রিকোয়েস্ট এক্সেপ্ট হয়
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
@@ -25,18 +22,23 @@ export default async function handler(req, res) {
   const results = await Promise.all(
     emails.map(async (email) => {
       const cleanEmail = email.trim().toLowerCase();
-      const hash = crypto.createHash('md5').update(cleanEmail).digest('hex');
       
-      // Gravatar 404 চেক
-      const gravatarUrl = `https://www.gravatar.com/avatar/${hash}?d=404`;
-      
+      // Google Profile Image Endpoint
+      const googlePhotoUrl = `https://lh3.googleusercontent.com/a/default-user=s96-c`;
+      // Google Public Directory Lookup URL
+      const googleAvatarUrl = `https://profiles.google.com/image/p/${cleanEmail}`;
+
       try {
-        const response = await fetch(gravatarUrl, { method: 'HEAD' });
-        const hasPhoto = response.status === 200;
+        const response = await fetch(googleAvatarUrl, { method: 'HEAD', redirect: 'follow' });
+        
+        // Google যদি ডিফল্ট ছবি না দিয়ে আসল কোনো প্রোফাইল ছবি ডাইরেক্ট করে
+        const finalUrl = response.url;
+        const hasPhoto = response.ok && !finalUrl.includes('default-user') && !finalUrl.includes('cleardot.gif');
+
         return {
           email: cleanEmail,
           hasPhoto: hasPhoto,
-          avatarUrl: hasPhoto ? `https://www.gravatar.com/avatar/${hash}?s=150` : null
+          avatarUrl: hasPhoto ? finalUrl : null
         };
       } catch (err) {
         return { email: cleanEmail, hasPhoto: false, avatarUrl: null };
